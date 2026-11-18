@@ -177,8 +177,14 @@ fn warp_layers(layers: &mut [Layer], h: &Homography, interp: Interp, clip: Rect,
                     warped
                 };
             }
-            // Adjustment layers have no pixels; the rest was rasterized before.
-            _ => {}
+            // Adjustment layers have no pixels; the rest was rasterized before. Listed, not `_`,
+            // so a new content kind with pixels fails to compile here.
+            LayerContent::Adjustment(_)
+            | LayerContent::Fill(_)
+            | LayerContent::Text(_)
+            | LayerContent::Shape(_)
+            | LayerContent::Smart(_)
+            | LayerContent::Scene3d(_) => {}
         }
         if let Some(m) = l.mask.as_mut() {
             m.surface = warp_gray(&m.surface, h, interp, clip)?;
@@ -229,7 +235,7 @@ fn perspective_crop(s: &mut Session, p: &Value) -> Result<Value> {
         .doc
         .walk()
         .iter()
-        .any(|(_, _, l)| matches!(l.content, LayerContent::Text(_) | LayerContent::Shape(_) | LayerContent::Fill(_) | LayerContent::Smart(_)));
+        .any(|(_, _, l)| matches!(l.content, LayerContent::Text(_) | LayerContent::Shape(_) | LayerContent::Fill(_) | LayerContent::Smart(_) | LayerContent::Scene3d(_)));
     let map = quad_to_rect(&q, f64::from(w), f64::from(h)).ok_or_else(|| bad("the corners don't define a perspective"))?;
     let bg = s.tools.background;
     // The Color Sampler points follow their pixels through the homography, which the edit's
@@ -263,7 +269,7 @@ pub fn specs() -> Vec<CommandSpec> {
         label: "Perspective Crop",
         menu: &[],
         shortcut: None,
-        params: r##"{"corners":[[x,y],[x,y],[x,y],[x,y]] (top-left, top-right, bottom-right, bottom-left; a convex quad, document px),"width":px,"height":px,"resolution":ppi,"interpolation":"bicubic|bilinear|nearest"="bicubic"} → {width,height,resolution,corners} (the quad is mapped onto an upright width x height canvas, all layers, one undo step; no width/height: the rectangle the quad shows in perspective, one alone keeps its proportions; type, shape, fill and smart object layers are rasterized)"##,
+        params: r##"{"corners":[[x,y],[x,y],[x,y],[x,y]] (top-left, top-right, bottom-right, bottom-left; a convex quad, document px),"width":px,"height":px,"resolution":ppi,"interpolation":"bicubic|bilinear|nearest"="bicubic"} → {width,height,resolution,corners} (the quad is mapped onto an upright width x height canvas, all layers, one undo step; no width/height: the rectangle the quad shows in perspective, one alone keeps its proportions; type, shape, fill, smart object and 3D layers are rasterized)"##,
         enabled: has_doc,
         run: perspective_crop,
         journal: true,

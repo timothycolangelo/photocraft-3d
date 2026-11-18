@@ -20,7 +20,7 @@ fn has_doc(s: &Session) -> std::result::Result<(), String> {
 }
 
 /// Applies `f` to every pixel surface of a layer tree: content (raster or
-/// cached text/shape/smart pixels), fill caches, stored video frames (current and original),
+/// cached text/shape/smart/3D pixels), fill caches, stored video frames (current and original),
 /// and (if `masks`) masks.
 pub(crate) fn for_each_surface(layers: &mut [Layer], masks: bool, f: &mut dyn FnMut(&mut Surface, bool)) {
     for l in layers {
@@ -60,8 +60,12 @@ pub(crate) fn for_each_surface(layers: &mut [Layer], masks: bool, f: &mut dyn Fn
                     f(&mut mask.surface, true);
                 }
             }
+            // A 3D layer shows only its stored render, which no scene can re-render yet: canvas
+            // operations transform that render, or it drifts out of step with the canvas.
+            LayerContent::Scene3d(s3) => f(&mut s3.cache, false),
             LayerContent::Group(g) => for_each_surface(&mut g.children, masks, f),
-            _ => {}
+            // Listed, not `_`, so a new content kind with pixels fails to compile here.
+            LayerContent::Adjustment(_) | LayerContent::Fill(_) => {}
         }
     }
 }

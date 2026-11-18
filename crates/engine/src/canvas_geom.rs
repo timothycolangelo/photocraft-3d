@@ -418,7 +418,7 @@ impl Turn {
 }
 
 /// Every pixel surface a canvas turn moves: content, rendered caches (type, shape, smart object,
-/// fill), stored video frames (current and original), masks (layer, smart filter), alpha
+/// 3D, fill), stored video frames (current and original), masks (layer, smart filter), alpha
 /// channels, Quick Mask and the selection.
 fn remap_pixels(doc: &mut Document, map: &dyn Fn(i32, i32) -> (i32, i32)) {
     fn rec(layers: &mut [Layer], map: &dyn Fn(i32, i32) -> (i32, i32)) {
@@ -444,8 +444,11 @@ fn remap_pixels(doc: &mut Document, map: &dyn Fn(i32, i32) -> (i32, i32)) {
                         re(&mut m.surface);
                     }
                 }
+                // The stored render of a 3D layer turns with the canvas.
+                LayerContent::Scene3d(s3) => re(&mut s3.cache),
                 LayerContent::Group(g) => rec(&mut g.children, map),
-                _ => {}
+                // Listed, not `_`, so a new content kind with pixels fails to compile here.
+                LayerContent::Adjustment(_) | LayerContent::Fill(_) => {}
             }
         }
     }

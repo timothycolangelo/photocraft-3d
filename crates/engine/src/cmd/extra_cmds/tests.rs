@@ -1293,26 +1293,52 @@ fn make_3d(s: &mut Session) -> LayerId {
 
 #[test]
 fn rasterize_3d_keeps_pixels_and_drops_pxsc() {
-    let mut s = session(8);
-    make_3d(&mut s);
-    s.execute("layer.rasterize.3d", json!({})).unwrap();
-    assert!(matches!(active(&s).content, LayerContent::Raster(_)));
-    assert_eq!(pixel(&s, 5, 5), BLUE.to_vec());
-    assert!(!has_pxsc(active(&s)));
-    s.undo();
-    assert!(matches!(active(&s).content, LayerContent::Scene3d(_)));
-    assert!(has_pxsc(active(&s)));
+    for bits in [8, 16] {
+        let mut s = session(bits);
+        make_3d(&mut s);
+        s.execute("layer.rasterize.3d", json!({})).unwrap();
+        assert!(matches!(active(&s).content, LayerContent::Raster(_)), "{bits}");
+        assert_eq!(pixel(&s, 5, 5), BLUE.to_vec(), "{bits}");
+        assert!(!has_pxsc(active(&s)), "{bits}");
+        s.undo();
+        assert!(matches!(active(&s).content, LayerContent::Scene3d(_)), "{bits}");
+        assert!(has_pxsc(active(&s)), "{bits}");
+    }
+}
+
+/// A stored render whose format differs from the document's (a PSD's render at another depth)
+/// rasterizes into a pixel layer of the document's format, the pixels kept.
+#[test]
+fn rasterize_3d_converts_a_cache_of_another_format() {
+    for (bits, other) in [(8, photocraft_color::SampleType::U16), (16, photocraft_color::SampleType::U8)] {
+        let mut s = session(bits);
+        let id = make_3d(&mut s);
+        s.edit("other depth", |doc, _| {
+            if let LayerContent::Scene3d(l) = &mut doc.layer_mut(id).unwrap().content {
+                l.cache = l.cache.convert(l.cache.format().with_sample(other));
+            }
+            Ok(())
+        })
+        .unwrap();
+        let fmt = doc(&s).pixel_format();
+        assert!(matches!(&layer_of(&s, id.0).content, LayerContent::Scene3d(l) if l.cache.format() != fmt), "{bits}");
+        s.execute("layer.rasterize.3d", json!({})).unwrap();
+        assert!(matches!(&active(&s).content, LayerContent::Raster(px) if px.format() == fmt), "{bits}");
+        assert_eq!(pixel(&s, 5, 5), BLUE.to_vec(), "{bits}");
+    }
 }
 
 #[test]
 fn rasterize_layer_and_all_layers_cover_3d() {
-    for cmd in ["layer.rasterize.layer", "layer.rasterize.allLayers"] {
-        let mut s = session(8);
-        make_3d(&mut s);
-        s.execute(cmd, json!({})).unwrap();
-        assert!(matches!(active(&s).content, LayerContent::Raster(_)), "{cmd}");
-        assert_eq!(pixel(&s, 5, 5), BLUE.to_vec(), "{cmd}");
-        assert!(!has_pxsc(active(&s)), "{cmd}");
+    for bits in [8, 16] {
+        for cmd in ["layer.rasterize.layer", "layer.rasterize.allLayers"] {
+            let mut s = session(bits);
+            make_3d(&mut s);
+            s.execute(cmd, json!({})).unwrap();
+            assert!(matches!(active(&s).content, LayerContent::Raster(_)), "{cmd} {bits}");
+            assert_eq!(pixel(&s, 5, 5), BLUE.to_vec(), "{cmd} {bits}");
+            assert!(!has_pxsc(active(&s)), "{cmd} {bits}");
+        }
     }
 }
 
@@ -1325,64 +1351,154 @@ fn rasterize_3d_on_a_pixel_layer_errs() {
 
 #[test]
 fn painting_on_a_3d_layer_is_refused() {
-    let mut s = session(8);
-    make_3d(&mut s);
-    let before = doc(&s).clone();
-    let e = s
-        .execute("paint.stroke", json!({"points": [[2, 2], [20, 20]], "size": 6, "hardness": 1, "color": "#ff0000"}))
-        .unwrap_err()
-        .to_string();
-    assert!(e.contains("not a pixel layer"), "{e}");
-    let e = s.execute("edit.fill", json!({"contents": "color", "color": "#ff0000"})).unwrap_err().to_string();
-    assert!(e.contains("3D layer, not a pixel layer"), "{e}");
-    assert!(*doc(&s) == before);
+    for bits in [8, 16] {
+        let mut s = session(bits);
+        make_3d(&mut s);
+        let before = doc(&s).clone();
+        let e = s
+            .execute("paint.stroke", json!({"points": [[2, 2], [20, 20]], "size": 6, "hardness": 1, "color": "#ff0000"}))
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("not a pixel layer"), "{bits}: {e}");
+        let e = s.execute("edit.fill", json!({"contents": "color", "color": "#ff0000"})).unwrap_err().to_string();
+        assert!(e.contains("3D layer, not a pixel layer"), "{bits}: {e}");
+        assert!(*doc(&s) == before, "{bits}");
+    }
 }
 
 #[test]
 fn moving_a_3d_layer_never_panics() {
-    for (cmd, p) in [("layer.translate", json!({"dx": 10, "dy": 5})), ("edit.transform.rotate180", json!({}))] {
-        let mut s = session(8);
+    for bits in [8, 16] {
+        for (cmd, p) in [("layer.translate", json!({"dx": 10, "dy": 5})), ("edit.transform.rotate180", json!({}))] {
+            let mut s = session(bits);
+            let id = make_3d(&mut s);
+            match s.execute(cmd, p) {
+                Ok(_) => {}
+                Err(e) => assert!(e.to_string().contains("3D"), "{cmd}: {e}"),
+            }
+            assert!(matches!(layer_of(&s, id.0).content, LayerContent::Scene3d(_)), "{cmd}");
+        }
+        // Free Transform warps the stored render: two marked pixels swap places.
+        let mut s = session(bits);
         let id = make_3d(&mut s);
-        match s.execute(cmd, p) {
-            Ok(_) => {}
-            Err(e) => assert!(e.to_string().contains("3D"), "{cmd}: {e}"),
-        }
-        assert!(matches!(layer_of(&s, id.0).content, LayerContent::Scene3d(_)), "{cmd}");
+        s.edit("mark", |doc, _| {
+            if let LayerContent::Scene3d(l) = &mut doc.layer_mut(id).unwrap().content {
+                l.cache.fill_rect(Rect::new(7, 5, 8, 6), &[1.0, 0.0, 0.0, 1.0]);
+            }
+            Ok(())
+        })
+        .unwrap();
+        s.execute("edit.transform.rotate180", json!({})).unwrap();
+        assert!(matches!(layer_of(&s, id.0).content, LayerContent::Scene3d(_)));
+        // 180 degrees about the content's centre: the blue pixel (5,5) and red pixel (7,5) swap.
+        assert_eq!(pixel(&s, 7, 5), BLUE.to_vec());
+        assert_eq!(pixel(&s, 5, 5), vec![1.0, 0.0, 0.0, 1.0]);
+        let mut s = session(bits);
+        make_3d(&mut s);
+        // The Move tool's command moves the stored render with the layer.
+        s.execute("layer.translate", json!({"dx": 10, "dy": 5})).unwrap();
+        assert_eq!(pixel(&s, 15, 10), BLUE.to_vec());
+        assert_eq!(pixel(&s, 5, 5)[3], 0.0);
     }
-    // Free Transform warps the stored render: two marked pixels swap places.
-    let mut s = session(8);
-    let id = make_3d(&mut s);
-    s.edit("mark", |doc, _| {
-        if let LayerContent::Scene3d(l) = &mut doc.layer_mut(id).unwrap().content {
-            l.cache.fill_rect(Rect::new(7, 5, 8, 6), &[1.0, 0.0, 0.0, 1.0]);
-        }
-        Ok(())
-    })
-    .unwrap();
-    s.execute("edit.transform.rotate180", json!({})).unwrap();
-    assert!(matches!(layer_of(&s, id.0).content, LayerContent::Scene3d(_)));
-    // 180 degrees about the content's centre: the blue pixel (5,5) and red pixel (7,5) swap.
-    assert_eq!(pixel(&s, 7, 5), BLUE.to_vec());
-    assert_eq!(pixel(&s, 5, 5), vec![1.0, 0.0, 0.0, 1.0]);
-    let mut s = session(8);
-    make_3d(&mut s);
-    // The Move tool's command moves the stored render with the layer.
-    s.execute("layer.translate", json!({"dx": 10, "dy": 5})).unwrap();
-    assert_eq!(pixel(&s, 15, 10), BLUE.to_vec());
-    assert_eq!(pixel(&s, 5, 5)[3], 0.0);
 }
 
 #[test]
 fn merge_down_with_a_3d_layer_gives_pixels() {
-    let mut s = session(8);
-    paint_square(&mut s, Rect::new(0, 0, 40, 30), [1.0, 0.0, 0.0, 1.0]);
-    s.execute("layer.new.layer", json!({})).unwrap();
-    make_3d(&mut s);
-    let n = doc(&s).layer_count();
-    s.execute("layer.mergeDown", json!({})).unwrap();
-    assert_eq!(doc(&s).layer_count(), n - 1);
-    assert!(matches!(active(&s).content, LayerContent::Raster(_)));
-    assert_eq!(pixel(&s, 5, 5), BLUE.to_vec());
-    assert_eq!(pixel(&s, 6, 5), vec![1.0, 0.0, 0.0, 1.0]);
-    assert!(!has_pxsc(active(&s)));
+    for bits in [8, 16] {
+        let mut s = session(bits);
+        paint_square(&mut s, Rect::new(0, 0, 40, 30), [1.0, 0.0, 0.0, 1.0]);
+        s.execute("layer.new.layer", json!({})).unwrap();
+        make_3d(&mut s);
+        let n = doc(&s).layer_count();
+        s.execute("layer.mergeDown", json!({})).unwrap();
+        assert_eq!(doc(&s).layer_count(), n - 1);
+        assert!(matches!(active(&s).content, LayerContent::Raster(_)));
+        assert_eq!(pixel(&s, 5, 5), BLUE.to_vec());
+        assert_eq!(pixel(&s, 6, 5), vec![1.0, 0.0, 0.0, 1.0]);
+        assert!(!has_pxsc(active(&s)));
+    }
+}
+
+/// The marked block of a 3D layer's stored render: where it is, and the render's format.
+fn render_of(s: &Session, id: LayerId) -> (Rect, photocraft_color::PixelFormat) {
+    match &layer_of(s, id.0).content {
+        LayerContent::Scene3d(l) => (l.cache.content_bounds(), l.cache.format()),
+        other => panic!("not a 3D layer: {}", other.kind_name()),
+    }
+}
+
+/// Canvas-wide operations transform a 3D layer's stored render with the canvas, as they do the
+/// pixels of every other layer, and convert it with the document's depth and mode.
+#[test]
+fn canvas_operations_transform_a_3d_layers_stored_render() {
+    // The 40 x 30 canvas holds a 4 x 4 block at (8, 8); each case gives where the block lands.
+    let cases: [(&str, Value, Rect); 6] = [
+        ("image.imageSize", json!({"percent": 50, "resample": "nearest"}), Rect::new(4, 4, 6, 6)),
+        ("image.canvasSize", json!({"width": 60, "height": 50, "anchor": "bottomRight"}), Rect::new(28, 28, 32, 32)),
+        ("image.crop", json!({"x": 4, "y": 6, "width": 20, "height": 20}), Rect::new(4, 2, 8, 6)),
+        // (x, y) -> (h - 1 - y, x) on the 30-row canvas.
+        ("image.imageRotation.90cw", json!({}), Rect::new(18, 8, 22, 12)),
+        // x -> w - 1 - x on the 40-column canvas.
+        ("image.imageRotation.flipCanvasHorizontal", json!({}), Rect::new(28, 8, 32, 12)),
+        ("image.mode.grayscale", json!({}), Rect::new(8, 8, 12, 12)),
+    ];
+    for bits in [8, 16] {
+        let other_depth = if bits == 8 { "image.mode.bits16" } else { "image.mode.bits8" };
+        let cases = cases.iter().cloned().chain([(other_depth, json!({}), Rect::new(8, 8, 12, 12))]);
+        for (cmd, p, want) in cases {
+            let mut s = session(bits);
+            let id = make_3d(&mut s);
+            s.edit("mark", |doc, _| {
+                if let LayerContent::Scene3d(l) = &mut doc.layer_mut(id).unwrap().content {
+                    l.cache = photocraft_raster::Surface::new(l.cache.format());
+                    l.cache.fill_rect(Rect::new(8, 8, 12, 12), &BLUE);
+                }
+                Ok(())
+            })
+            .unwrap();
+            s.execute(cmd, p).unwrap();
+            let (bounds, fmt) = render_of(&s, id);
+            assert_eq!(bounds, want, "{cmd} at {bits} bits");
+            let doc_fmt = doc(&s).pixel_format();
+            assert_eq!((fmt.mode, fmt.sample), (doc_fmt.mode, doc_fmt.sample), "{cmd} at {bits} bits: the render's format");
+        }
+    }
+}
+
+/// Perspective Crop rasterizes a 3D layer, as it does a smart object, instead of leaving its
+/// stored render where the old canvas had it.
+#[test]
+fn perspective_crop_rasterizes_a_3d_layer() {
+    for bits in [8, 16] {
+        let mut s = session(bits);
+        let id = make_3d(&mut s);
+        s.execute("image.perspectiveCrop", json!({"corners": [[0, 0], [20, 0], [20, 15], [0, 15]], "width": 40, "height": 30, "interpolation": "nearest"})).unwrap();
+        let l = layer_of(&s, id.0);
+        assert!(matches!(l.content, LayerContent::Raster(_)), "{bits}: {}", l.content.kind_name());
+        // Doubled: the pixel at (5, 5) covers (10..12, 10..12).
+        assert_eq!(l.surface().unwrap().pixel(10, 10), BLUE.to_vec(), "{bits}");
+    }
+}
+
+/// Edit › Transform › Warp moves a 3D layer's stored render, as Free Transform does, instead of
+/// recording a step that changes nothing.
+#[test]
+fn warp_moves_a_3d_layers_stored_render() {
+    for bits in [8, 16] {
+        let mut s = session(bits);
+        let id = make_3d(&mut s);
+        s.edit("mark", |doc, _| {
+            if let LayerContent::Scene3d(l) = &mut doc.layer_mut(id).unwrap().content {
+                l.cache = photocraft_raster::Surface::new(l.cache.format());
+                l.cache.fill_rect(Rect::new(0, 0, 40, 30), &BLUE);
+            }
+            Ok(())
+        })
+        .unwrap();
+        let LayerContent::Scene3d(l) = &layer_of(&s, id.0).content else { panic!("not a 3D layer") };
+        let before = l.cache.clone();
+        s.execute("edit.transform.warp", json!({"style": "arc", "bend": 50})).unwrap();
+        let LayerContent::Scene3d(l) = &layer_of(&s, id.0).content else { panic!("not a 3D layer") };
+        assert!(l.cache != before, "{bits}: the warp left the stored render unchanged");
+    }
 }

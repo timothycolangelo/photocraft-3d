@@ -197,6 +197,26 @@ fn cancelled(ctl: &Interrupt) -> Result<()> {
     if ctl.cancelled() { Err(EngineError::Cancelled) } else { Ok(()) }
 }
 
+/// Warps the part of `surf` inside the warp box `rect` through `map`; content outside the box
+/// stays where it is.
+fn warp_whole(surf: &Surface, rect: Rect, map: &(dyn Fn(f64, f64) -> (f64, f64) + Sync), interp: Interp, ctl: &Interrupt) -> Result<Surface> {
+    let fmt = surf.format();
+    let warped = warp_mesh_surface_with(surf, rect, map, Fold::IN_PLACE, interp, ctl).ok_or(EngineError::Cancelled)?;
+    cancelled(ctl)?;
+    // Tiles are shared, so a surface that has alpha already costs nothing to copy.
+    let mut rest = if fmt.alpha { surf.clone() } else { surf.convert(photocraft_color::PixelFormat::new(fmt.mode, fmt.sample, true)) };
+    crate::pixels::try_clear_surface(&mut rest, rect, None)?;
+    if rest.content_bounds().is_empty() {
+        // The box held all of the layer: the warp is the whole result.
+        Ok(warped)
+    } else {
+        cancelled(ctl)?;
+        crate::transform_cmds::composite_over(&mut rest, &warped);
+        rest.prune();
+        Ok(rest)
+    }
+}
+
 /// `ctl` reports progress and cancels (`Err(Cancelled)`, the layer left half-done for the caller
 /// to discard).
 #[allow(clippy::too_many_arguments)]
@@ -258,6 +278,9 @@ fn warp_layer(
                 m.surface = warp_mesh_gray_with(&m.surface, &map, Fold::IN_PLACE, interp);
             }
         }
+        // The stored render is authoritative until a 3D re-render exists: the warp moves its
+        // pixels, the whole layer as Free Transform does (the layer stays a 3D layer).
+        LayerContent::Scene3d(s3) => s3.cache = warp_whole(&s3.cache, rect, &map, interp, ctl)?,
         _ => {
             if let Some(surf) = l.surface_mut() {
                 *surf = match doc_sel {
@@ -269,24 +292,7 @@ fn warp_layer(
                         rest.prune();
                         rest
                     }
-                    None => {
-                        // Content outside the warp box stays where it is.
-                        let fmt = surf.format();
-                        let warped = warp_mesh_surface_with(surf, rect, &map, Fold::IN_PLACE, interp, ctl).ok_or(EngineError::Cancelled)?;
-                        cancelled(ctl)?;
-                        // Tiles are shared, so a surface that has alpha already costs nothing to copy.
-                        let mut rest = if fmt.alpha { surf.clone() } else { surf.convert(photocraft_color::PixelFormat::new(fmt.mode, fmt.sample, true)) };
-                        crate::pixels::try_clear_surface(&mut rest, rect, None)?;
-                        if rest.content_bounds().is_empty() {
-                            // The box held all of the layer: the warp is the whole result.
-                            warped
-                        } else {
-                            cancelled(ctl)?;
-                            crate::transform_cmds::composite_over(&mut rest, &warped);
-                            rest.prune();
-                            rest
-                        }
-                    }
+                    None => warp_whole(surf, rect, &map, interp, ctl)?,
                 };
             }
         }
