@@ -36,6 +36,7 @@ what an agent can't finish alone.
 | G15 | AI and generative features | AI | medium (high for some users) | 300–600 h + human | [target-app-parity](target-app-parity.md) |
 | G16 | Plug-in compatibility (.8BF, UXP) | ecosystem | medium | 250–450 h + human | [target-app-parity](target-app-parity.md) |
 | G17 | Platforms and distribution | platforms | low-medium | 30–60 h + human | [scorecard](scorecard.md#distribution) |
+| G18 | 3D layers from older files: edit and re-render | file format, features | low-medium | 150–260 h | [file-format-parity](file-format-parity.md) |
 
 ## Feature gaps
 
@@ -490,10 +491,16 @@ what an agent can't finish alone.
   grayscale is refused on the web before Place or smart-object rendering.
 - **Estimate:** 30–60 h. **Human:** signing certificates.
 
+### G18. 3D layers from older files: edit and re-render
+- **Status (2026-11-18):** phase 1 landed. A PSD/PSB 3D layer opens as a "3D" layer showing its stored render, keeps its `PxSc` layer block and `PxSD` global block byte-identical on save, refuses pixel edits with a "not a pixel layer" error, moves and Free Transforms its stored render, and rasterizes with Layer › Rasterize › 3D (`layer.rasterize.3d`).
+- **Open (phases 2–7 of the [design](superpowers/specs/2026-11-18-3d-layers-design.md)):** scene model and CPU renderer; decoding and encoding the scene blocks; edit commands (rotate, scale, retexture, relight); wgpu renderer for interaction; 3D panel, tools and workspace; writing edits back into the PSD. Edited files only need to reopen in PhotoCraft.
+- **Estimate:** 150–260 h. Not blocking beta.
+
 ## Revision history
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-18 | minor | G18: 3D layers from older files open with their stored render and keep their scene blocks verbatim; Rasterize › 3D; phases 2–7 open |
 | 2026-11-08 | minor | G9: Units & Rulers › Column Size takes effect as the Columns width unit of Image Size and Canvas Size (#6214); preferences that do nothing 10 → 8 of 199 |
 | 2026-10-27 | minor | G5: Warp mode edits Photoshop's Cylinder warp (#4112): the Warp menu lists it after the presets, five handles set its silhouettes, edges, ellipse depths and wrap as in the reference (Bend, H and V stay greyed), and a smart object's stored cylinder opens in Warp mode as a cylinder and commits back as one; no estimate changed |
 | 2026-11-07 | minor | G14: Hasselblad 3FR/FFF, the X2D II 100C's uncompressed CFA, decodes; compressed 3FR still opens as the embedded preview |

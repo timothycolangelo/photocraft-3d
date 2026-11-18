@@ -349,7 +349,7 @@ Closing the last 5% (video + AI) is the long, uncertain tail.
   room means no Adobe code, profiles, shaders, or trained models; AI features target equivalents.
 - Wall-clock assumes 6–8 independent arcs in parallel with their own target dirs, as this session ran.
   Serial work is ~6× longer.
-- Adobe removed 3D/Substance from Photoshop, so 3D is intentionally out of scope.
+- Adobe removed 3D/Substance from Photoshop, so new 3D authoring is out of scope. As of 2026-11-18, 3D layers in older files are in scope for continuity: phase 1 opens them showing the stored render, labelled "3D", and keeps their scene data byte-identical on save. Editing them is not possible yet (see [G18 in gaps](gaps.md#g18-3d-layers-from-older-files)).
 - Fidelity hours are the least certain: the remaining oracle failures are proprietary RNGs and
   unpublished curve models fitted by observation.
 
@@ -600,6 +600,7 @@ See [method, raw measurements and reproduction](five-algorithm-performance.md).
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-18 | minor | 3D layers from older PSD/PSB files are in scope for continuity (replaces "3D is intentionally out of scope"); phase 1 opens them with the stored render and keeps `PxSc`/`PxSD` verbatim, Layer › Rasterize › 3D added; scene editing open (G18); percentages and estimates unchanged |
 | 2026-11-10 | minor | Image Processor: current-document and all-open-document sources process in-memory copies, preserving originals and history; folder input remains available; percentages and estimates unchanged |
 | 2026-11-02 | minor | Automation Batch: Esc Continue/Stop preserves one file plan and error log; a read-only input preview replaces the progress bar; full live tabs remain open, AUTO-219-5 partial (#4579); percentages and estimates unchanged |
 | 2026-11-02 | minor | AUTO-219-1: action recording folds Move-tool nudges, records relative document switches and scales point text placement to the playback canvas; duplicate names and paragraph box placement remain open; Automation parity estimate unchanged |
