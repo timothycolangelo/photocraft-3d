@@ -90,6 +90,7 @@ pub fn preview_page(doc: &Document, source: Rect, factor: u32, interrupt: Interr
                     *s = shrink(s, r, k, last, i)?;
                 }
             }
+            LayerContent::Scene3d(t) => t.cache = shrink(&t.cache, r, k, last, i)?,
             _ => {}
         }
         Ok(())
@@ -228,6 +229,28 @@ mod tests {
                 assert!((px[0] - 1.0).abs() < 1e-6 && (px[3] - 1.0).abs() < 1e-6, "{source:?} cell {i}: {px:?}");
             }
         }
+    }
+    /// A 3D layer is reduced like a pixel layer holding its stored render: its cache must shrink
+    /// with the document, not stay at full-size coordinates.
+    #[test]
+    fn preview_reduces_a_3d_layer_like_its_pixels() {
+        let build = |scene: bool| {
+            let mut d = Document::new("3d", Size::new(16, 16), ColorMode::Rgb, SampleType::U8);
+            let mut s = photocraft_raster::Surface::new(d.pixel_format());
+            s.fill_rect(Rect::new(8, 8, 16, 16), &[1.0, 0.0, 0.0, 1.0]);
+            let content = if scene {
+                photocraft_doc::LayerContent::Scene3d(photocraft_doc::Scene3dLayer { cache: s, psd_raw: None })
+            } else {
+                photocraft_doc::LayerContent::Raster(s)
+            };
+            d.layers.push(photocraft_doc::Layer::new("l", content));
+            d
+        };
+        let want = preview_page(&build(false), Rect::new(0, 0, 16, 16), 4, Interrupt::NONE).unwrap();
+        let got = preview_page(&build(true), Rect::new(0, 0, 16, 16), 4, Interrupt::NONE).unwrap();
+        assert_eq!(got.rect, want.rect);
+        assert_eq!(got.px, want.px);
+        assert!(got.px.iter().any(|p| p[3] > 0.5), "the render is not empty");
     }
     /// An artboard covers the preview cells whose sample (`c·k + k/2`) lies on the board, so a
     /// narrow board, or one whose edges fall mid-cell, keeps exactly those cells (#5332 review).
