@@ -350,7 +350,7 @@ Closing the last 5% (video + AI) is the long, uncertain tail.
   room means no Adobe code, profiles, shaders, or trained models; AI features target equivalents.
 - Wall-clock assumes 6–8 independent arcs in parallel with their own target dirs, as this session ran.
   Serial work is ~6× longer.
-- Adobe removed 3D/Substance from Photoshop, so new 3D authoring is out of scope. As of 2026-11-18, 3D layers in older files are in scope for continuity: phase 1 opens them showing the stored render, labelled "3D", and keeps their scene data byte-identical on save. Editing them is not possible yet (see [G18 in gaps](gaps.md#g18-3d-layers-from-older-files)).
+- Adobe removed 3D/Substance from Photoshop, so new 3D authoring is out of scope. As of 2026-11-18, 3D layers in older files are in scope for continuity: phase 1 opens them showing the stored render, labelled "3D", and keeps their scene data byte-identical on save. Editing them is not possible yet (see [G18 in gaps](gaps.md#g18-3d-layers-from-older-files-edit-and-re-render)).
 - Fidelity hours are the least certain: the remaining oracle failures are proprietary RNGs and
   unpublished curve models fitted by observation.
 

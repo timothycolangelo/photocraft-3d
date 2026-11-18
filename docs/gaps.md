@@ -492,7 +492,7 @@ what an agent can't finish alone.
 - **Estimate:** 30–60 h. **Human:** signing certificates.
 
 ### G18. 3D layers from older files: edit and re-render
-- **Status (2026-11-18):** phase 1 landed. A PSD/PSB 3D layer opens as a "3D" layer showing its stored render, keeps its `PxSc` layer block and `PxSD` global block byte-identical on save, refuses pixel edits with a "not a pixel layer" error, moves and Free Transforms its stored render, and rasterizes with Layer › Rasterize › 3D (`layer.rasterize.3d`).
+- **Status (2026-11-18):** phase 1 landed. A PSD/PSB 3D layer opens as a "3D" layer showing its stored render, keeps its `PxSc` layer block and `PxSD` global block byte-identical on save, refuses pixel edits with a "not a pixel layer" error, and rasterizes with Layer › Rasterize › 3D (`layer.rasterize.3d`). Its stored render is the layer's pixels until a 3D re-render exists: moving the layer, Free Transform and Warp move that render, and canvas operations (Image Size, Canvas Size, Crop and Trim, Image Rotation and Flip Canvas, bit-depth and colour-mode conversion) transform or convert it with the canvas; Perspective Crop rasterizes the layer, as it does smart objects. The scene itself does not follow these changes yet.
 - **Open (phases 2–7 of the [design](superpowers/specs/2026-11-18-3d-layers-design.md)):** scene model and CPU renderer; decoding and encoding the scene blocks; edit commands (rotate, scale, retexture, relight); wgpu renderer for interaction; 3D panel, tools and workspace; writing edits back into the PSD. Edited files only need to reopen in PhotoCraft.
 - **Estimate:** 150–260 h. Not blocking beta.
 
