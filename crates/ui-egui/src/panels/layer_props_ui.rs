@@ -240,6 +240,8 @@ pub fn quick_actions(content: &LayerContent) -> &'static [(&'static str, &'stati
         ],
         LayerContent::Group(_) => &[("Ungroup Layers", "layer.ungroupLayers"), ("Convert to Smart Object", "layer.smartObjects.convertToSmartObject")],
         LayerContent::Fill(_) => &[("Rasterize Fill Content", "layer.rasterize.fillContent")],
+        // No 3D actions yet: the layer is its stored render.
+        LayerContent::Scene3d(_) => &[],
         LayerContent::Adjustment(_) => &[],
     }
 }

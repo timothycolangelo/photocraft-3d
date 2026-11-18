@@ -274,6 +274,11 @@ pub enum ContentM {
         #[serde(default)]
         warp: Option<text::TextWarp>,
     },
+    /// A 3D layer: the stored render and the raw scene block.
+    Scene3d {
+        cache: SurfaceM,
+        psd_raw: Option<Hash>,
+    },
     Shape {
         fill: Option<Fill>,
         cache: Option<SurfaceM>,

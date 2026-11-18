@@ -18,6 +18,7 @@ pub mod frame;
 pub mod import_conversion;
 pub mod mode;
 pub mod pattern;
+pub mod scene3d;
 pub mod slices;
 pub mod text;
 pub mod text_styles;
@@ -40,6 +41,7 @@ pub use effects::{
 pub use frame::Frame;
 pub use mode::{ColorTable, Duotone, DuotoneInk, StackMode};
 pub use pattern::Pattern;
+pub use scene3d::Scene3dLayer;
 pub use photocraft_color::{BlendMode, Color, ColorMode, PixelFormat, SampleType};
 pub use photocraft_geom::{Affine, Rect, Size};
 pub use photocraft_raster::Surface;
@@ -611,6 +613,8 @@ pub enum LayerContent {
     Text(TextLayer),
     Shape(ShapeLayer),
     Smart(SmartObject),
+    /// A 3D layer: Photoshop's stored render and the raw scene block (see [`Scene3dLayer`]).
+    Scene3d(Scene3dLayer),
 }
 
 impl LayerContent {
@@ -623,6 +627,7 @@ impl LayerContent {
             LayerContent::Text(_) => "Type",
             LayerContent::Shape(_) => "Shape",
             LayerContent::Smart(_) => "Smart Object",
+            LayerContent::Scene3d(_) => "3D",
         }
     }
 
@@ -756,6 +761,7 @@ impl Layer {
             LayerContent::Text(t) => t.cache.as_ref(),
             LayerContent::Shape(s) => s.cache.as_ref(),
             LayerContent::Smart(s) => s.cache.as_ref(),
+            LayerContent::Scene3d(s) => Some(&s.cache),
             _ => None,
         }
     }

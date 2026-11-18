@@ -239,6 +239,7 @@ fn stand_in_layer(l: &mut Layer, planes: Planes, depth: SampleType, canvas: Rect
         LayerContent::Text(t) => cache(&mut t.cache),
         LayerContent::Shape(sh) => cache(&mut sh.cache),
         LayerContent::Smart(sm) => cache(&mut sm.cache),
+        LayerContent::Scene3d(s3) => s3.cache = stand_in_surface(&s3.cache, planes),
         LayerContent::Fill(f) => {
             // The cache stays valid: its fill is changed the same way.
             if let Some(c) = l.fill_cache.as_mut().filter(|c| c.fill == *f) {

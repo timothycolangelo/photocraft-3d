@@ -389,6 +389,8 @@ fn shift_shown(doc: &Document, l: &mut Layer, dx: i32, dy: i32, wrap: Option<pho
         }
         LayerContent::Shape(sh) => crate::vector_cmds::shift_shape(doc, sh, f64::from(dx), f64::from(dy)),
         LayerContent::Smart(sm) => crate::smart_cmds::shift_smart(sm, dx, dy),
+        // The stored render moves with the layer (it is in document coordinates).
+        LayerContent::Scene3d(s3) => s3.cache = translate_surface(&s3.cache, dx, dy),
         LayerContent::Group(g) => {
             if let Some(ab) = &mut g.artboard {
                 ab.rect = ab.rect.translate(dx, dy);
@@ -422,7 +424,7 @@ fn subtree_wraps_only(l: &Layer, depth: usize) -> bool {
     match &l.content {
         LayerContent::Raster(_) | LayerContent::Adjustment(_) | LayerContent::Fill(_) => true,
         LayerContent::Group(g) => g.artboard.is_none() && g.children.iter().all(|c| subtree_wraps_only(c, depth + 1)),
-        LayerContent::Text(_) | LayerContent::Shape(_) | LayerContent::Smart(_) => false,
+        LayerContent::Text(_) | LayerContent::Shape(_) | LayerContent::Smart(_) | LayerContent::Scene3d(_) => false,
     }
 }
 

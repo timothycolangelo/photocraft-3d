@@ -98,7 +98,7 @@ fn cmyk_pixels(l: &Layer) -> bool {
     let cmyk = |s: &photocraft_raster::Surface| s.format().mode == ColorMode::Cmyk;
     match &l.content {
         LayerContent::Raster(s) => cmyk(s),
-        LayerContent::Text(_) | LayerContent::Shape(_) | LayerContent::Smart(_) => l.surface().is_none_or(cmyk),
+        LayerContent::Text(_) | LayerContent::Shape(_) | LayerContent::Smart(_) | LayerContent::Scene3d(_) => l.surface().is_none_or(cmyk),
         LayerContent::Fill(f) => match &l.fill_cache {
             Some(c) if c.fill == *f => cmyk(&c.surface),
             // Solid colours and gradients render natively in CMYK; patterns don't.
@@ -116,7 +116,7 @@ fn layer_supported(l: &Layer, clipped: &[Layer], depth: u32) -> bool {
         // A stroked shape with clipped layers draws its stroke above them (the compositor's
         // split path), which this path doesn't do.
         LayerContent::Shape(sh) if sh.stroke.is_some() && clipped.iter().any(|c| c.visible) => false,
-        LayerContent::Raster(_) | LayerContent::Text(_) | LayerContent::Shape(_) | LayerContent::Smart(_) | LayerContent::Fill(_) => {
+        LayerContent::Raster(_) | LayerContent::Text(_) | LayerContent::Shape(_) | LayerContent::Smart(_) | LayerContent::Scene3d(_) | LayerContent::Fill(_) => {
             cmyk_pixels(l) && separable(l.blend)
         }
         LayerContent::Group(g) => {

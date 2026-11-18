@@ -149,6 +149,7 @@ fn layer_m(l: &Layer, sink: &mut dyn Sink) -> LayerM {
             antialias: t.antialias,
             warp: t.warp.clone(),
         },
+        LayerContent::Scene3d(s) => ContentM::Scene3d { cache: surface_m(&s.cache, sink), psd_raw: opt_blob(&s.psd_raw, sink) },
         LayerContent::Shape(s) => ContentM::Shape {
             fill: s.fill.clone(),
             cache: s.cache.as_ref().map(|c| surface_m(c, sink)),
@@ -498,6 +499,7 @@ impl Loader<'_> {
                     warp: warp.clone(),
                 })
             }
+            ContentM::Scene3d { cache, psd_raw } => LayerContent::Scene3d(photocraft_doc::Scene3dLayer { cache: self.surface(cache)?, psd_raw: self.opt_blob(psd_raw)? }),
             ContentM::Shape { fill, cache, psd_raw, path, stroke, live, arrow_live, triangle_live, density, feather } => LayerContent::Shape(ShapeLayer {
                 path: path.clone(),
                 fill: fill.clone(),

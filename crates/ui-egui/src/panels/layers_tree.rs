@@ -218,6 +218,8 @@ impl LayerTree for PhotoLayers<'_> {
                 LayerContent::Text(_) => LayerKind::Text,
                 LayerContent::Shape(_) => LayerKind::Shape,
                 LayerContent::Smart(_) => LayerKind::SmartObject,
+                // The shared tree has no 3D tile; the stored render shows as pixels.
+                LayerContent::Scene3d(_) => LayerKind::Pixel,
             }
         };
         let mut info = LayerInfo::new(l.name.clone(), kind);

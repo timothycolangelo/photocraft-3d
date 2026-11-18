@@ -312,6 +312,8 @@ fn patterns_pixels_equal(a: &Document, b: &Document) -> bool {
                 LayerContent::Shape(s) => s.fill.as_ref().is_some_and(fill) || s.stroke.as_ref().is_some_and(|st| fill(&st.paint)),
                 // A smart object draws its cache; its own document holds its own patterns.
                 LayerContent::Raster(_) | LayerContent::Group(_) | LayerContent::Adjustment(_) | LayerContent::Text(_) | LayerContent::Smart(_) => false,
+                // A 3D layer draws its stored render.
+                LayerContent::Scene3d(_) => false,
             }
     };
     !any_layer(&b.layers, 0, &refers)

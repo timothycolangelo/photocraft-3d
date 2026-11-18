@@ -37,7 +37,7 @@ fn kind_icon(content: &LayerContent) -> &'static str {
         LayerContent::Text(_) => "type",
         LayerContent::Shape(_) => "vector-shape",
         LayerContent::Smart(_) => "app-window",
-        LayerContent::Raster(_) => "image",
+        LayerContent::Raster(_) | LayerContent::Scene3d(_) => "image",
     }
 }
 
