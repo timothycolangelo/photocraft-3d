@@ -1268,3 +1268,106 @@ fn rasterize_smart_object_layer() {
     assert!(matches!(active(&s4).content, LayerContent::Raster(_)));
     assert_eq!(pixel(&s4, 30, 30), vec![1.0, 1.0, 0.0, 1.0]);
 }
+
+const BLUE: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
+
+fn has_pxsc(l: &Layer) -> bool {
+    l.psd_blocks.iter().any(|(k, _)| k == b"PxSc")
+}
+
+/// Turn the active layer into a 3D layer whose stored render has one opaque blue pixel at (5, 5).
+fn make_3d(s: &mut Session) -> LayerId {
+    s.edit("make 3d", |doc, a| {
+        let id = a.unwrap();
+        let fmt = doc.pixel_format();
+        let l = doc.layer_mut(id).unwrap();
+        let mut cache = photocraft_raster::Surface::new(fmt);
+        cache.fill_rect(Rect::new(5, 5, 6, 6), &BLUE);
+        let raw = std::sync::Arc::new(vec![1u8, 2, 3]);
+        l.psd_blocks.push((*b"PxSc", raw.clone()));
+        l.content = LayerContent::Scene3d(photocraft_doc::Scene3dLayer { cache, psd_raw: Some(raw) });
+        Ok(id)
+    })
+    .unwrap()
+}
+
+#[test]
+fn rasterize_3d_keeps_pixels_and_drops_pxsc() {
+    let mut s = session(8);
+    make_3d(&mut s);
+    s.execute("layer.rasterize.3d", json!({})).unwrap();
+    assert!(matches!(active(&s).content, LayerContent::Raster(_)));
+    assert_eq!(pixel(&s, 5, 5), BLUE.to_vec());
+    assert!(!has_pxsc(active(&s)));
+    s.undo();
+    assert!(matches!(active(&s).content, LayerContent::Scene3d(_)));
+    assert!(has_pxsc(active(&s)));
+}
+
+#[test]
+fn rasterize_layer_and_all_layers_cover_3d() {
+    for cmd in ["layer.rasterize.layer", "layer.rasterize.allLayers"] {
+        let mut s = session(8);
+        make_3d(&mut s);
+        s.execute(cmd, json!({})).unwrap();
+        assert!(matches!(active(&s).content, LayerContent::Raster(_)), "{cmd}");
+        assert_eq!(pixel(&s, 5, 5), BLUE.to_vec(), "{cmd}");
+        assert!(!has_pxsc(active(&s)), "{cmd}");
+    }
+}
+
+#[test]
+fn rasterize_3d_on_a_pixel_layer_errs() {
+    let mut s = session(8);
+    let e = s.execute("layer.rasterize.3d", json!({})).unwrap_err().to_string();
+    assert!(e.contains("the layer is not a 3d layer"), "{e}");
+}
+
+#[test]
+fn painting_on_a_3d_layer_is_refused() {
+    let mut s = session(8);
+    make_3d(&mut s);
+    let before = doc(&s).clone();
+    let e = s
+        .execute("paint.stroke", json!({"points": [[2, 2], [20, 20]], "size": 6, "hardness": 1, "color": "#ff0000"}))
+        .unwrap_err()
+        .to_string();
+    assert!(e.contains("not a pixel layer"), "{e}");
+    let e = s.execute("edit.fill", json!({"contents": "color", "color": "#ff0000"})).unwrap_err().to_string();
+    assert!(e.contains("3D layer, not a pixel layer"), "{e}");
+    assert!(*doc(&s) == before);
+}
+
+#[test]
+fn moving_a_3d_layer_never_panics() {
+    for (cmd, p) in [("layer.translate", json!({"dx": 10, "dy": 5})), ("edit.transform.rotate180", json!({}))] {
+        let mut s = session(8);
+        let id = make_3d(&mut s);
+        match s.execute(cmd, p) {
+            Ok(_) => {}
+            Err(e) => assert!(e.to_string().contains("3D"), "{cmd}: {e}"),
+        }
+        assert!(matches!(layer_of(&s, id.0).content, LayerContent::Scene3d(_)), "{cmd}");
+    }
+    let mut s = session(8);
+    make_3d(&mut s);
+    // The Move tool's command moves the stored render with the layer.
+    s.execute("layer.translate", json!({"dx": 10, "dy": 5})).unwrap();
+    assert_eq!(pixel(&s, 15, 10), BLUE.to_vec());
+    assert_eq!(pixel(&s, 5, 5)[3], 0.0);
+}
+
+#[test]
+fn merge_down_with_a_3d_layer_gives_pixels() {
+    let mut s = session(8);
+    paint_square(&mut s, Rect::new(0, 0, 40, 30), [1.0, 0.0, 0.0, 1.0]);
+    s.execute("layer.new.layer", json!({})).unwrap();
+    make_3d(&mut s);
+    let n = doc(&s).layer_count();
+    s.execute("layer.mergeDown", json!({})).unwrap();
+    assert_eq!(doc(&s).layer_count(), n - 1);
+    assert!(matches!(active(&s).content, LayerContent::Raster(_)));
+    assert_eq!(pixel(&s, 5, 5), BLUE.to_vec());
+    assert_eq!(pixel(&s, 6, 5), vec![1.0, 0.0, 0.0, 1.0]);
+    assert!(!has_pxsc(active(&s)));
+}

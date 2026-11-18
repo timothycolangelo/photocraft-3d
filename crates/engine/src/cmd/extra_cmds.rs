@@ -744,6 +744,7 @@ pub(crate) fn kind_of(s: &Session, id: LayerId) -> Option<&'static str> {
         LayerContent::Shape(_) => "shape",
         LayerContent::Fill(_) => "fill",
         LayerContent::Smart(_) => "smart",
+        LayerContent::Scene3d(_) => "3d",
         _ => return None,
     })
 }
@@ -803,6 +804,24 @@ fn rasterize_content(s: &mut Session, id: LayerId, only: Option<&str>, key: &str
             s.coalesce_request = None;
             r?;
         }
+        "3d" => {
+            s.coalesce_request = Some(key.to_string());
+            let r = s.edit("Rasterize 3D", |doc, _| {
+                let fmt = doc.pixel_format();
+                let l = doc.layer_mut(id).ok_or(EngineError::NoLayer(id))?;
+                let surface = match &l.content {
+                    LayerContent::Scene3d(s3) => s3.cache.clone(),
+                    _ => return Err(EngineError::Other(format!("layer {} is not a 3D layer", id.0))),
+                };
+                let surface = if surface.format() == fmt { surface } else { surface.convert(fmt) };
+                l.content = LayerContent::Raster(surface);
+                // The scene block no longer describes the layer: kept, it would reopen as a 3D layer.
+                l.psd_blocks.retain(|(k, _)| k != b"PxSc");
+                Ok(())
+            });
+            s.coalesce_request = None;
+            r?;
+        }
         _ => {
             s.coalesce_request = Some(key.to_string());
             let r = s.edit("Rasterize Fill Content", |doc, _| {
@@ -840,6 +859,7 @@ fn rasterize_label(only: Option<&str>) -> &'static str {
         Some("shape") => "Rasterize Shape",
         Some("fill") => "Rasterize Fill Content",
         Some("smart") => "Rasterize Smart Object",
+        Some("3d") => "Rasterize 3D",
         _ => "Rasterize",
     }
 }
@@ -1127,6 +1147,15 @@ pub fn specs() -> Vec<CommandSpec> {
             r##"{"layer":id?} (no layer: every selected layer it applies to)"##,
             has_layer,
             |s, p| rasterize(s, p, Some("type"))
+        ),
+        spec!(
+            "layer.rasterize.3d",
+            "3D",
+            &["Layer", "Rasterize"],
+            None,
+            r##"{"layer":id?} (no layer: every selected 3D layer)"##,
+            has_layer,
+            |s, p| rasterize(s, p, Some("3d"))
         ),
         spec!(
             "layer.rasterize.fillContent",

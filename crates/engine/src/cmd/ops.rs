@@ -208,7 +208,9 @@ pub(crate) fn translate_layer_wrapped(doc: &Document, l: &mut Layer, dx: i32, dy
             }
         }
         LayerContent::Smart(sm) => crate::smart_cmds::shift_smart(sm, dx, dy),
-        _ => {}
+        // The stored render moves with the layer (it is in document coordinates).
+        LayerContent::Scene3d(s3) => s3.cache = translate_surface(&s3.cache, dx, dy),
+        LayerContent::Shape(_) | LayerContent::Fill(_) | LayerContent::Adjustment(_) => {}
     }
 }
 
