@@ -80,6 +80,7 @@ pub mod psd_thumbnail;
 pub mod raw;
 pub mod renderer;
 pub use renderer::{BandRenderer, CpuRenderer, RenderBand, RenderError};
+mod scene3d_map;
 pub mod slices_map;
 pub mod smart_map;
 pub mod svg;

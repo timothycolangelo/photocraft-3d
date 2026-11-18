@@ -570,9 +570,8 @@ impl Ex<'_> {
                     self.smart_blocks(l, sm, parsed, &mut raw);
                 }
             }
-            // Phase 1: the stored render is written as the layer's pixels; the `PxSc` block
-            // itself is not written yet (a later change), so no block is added here.
-            LayerContent::Scene3d(_) => {}
+            // The stored render is the layer's pixels; `PxSc` is the scene, written back verbatim.
+            LayerContent::Scene3d(s3) => set_principal(&mut raw, &[b"PxSc"], s3.psd_raw.as_ref()),
             // A pixel layer carries no content-defining blocks: a fill, placed (smart), type or
             // shape-fill block left over from before Rasterize would make a reader (ours or
             // Photoshop's) reopen the layer as that kind and discard the pixels. A shape stroke

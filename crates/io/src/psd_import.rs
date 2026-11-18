@@ -515,6 +515,7 @@ impl Ctx<'_> {
         // `psd_raw` shares the Arc of the matching `psd_blocks` entry.
         let principal = |k: &[u8; 4]| blocks.iter().find(|(bk, _)| bk == k).map(|(_, d)| d.clone());
         let mut fill_cache = None;
+        let pixel_source = rec.block(b"PxSc").map(|b| crate::scene3d_map::classify_pixel_source(&b.data));
 
         let content = if let Some(k) = adj_key {
             let data = rec.block(k).map(|b| b.data.clone()).unwrap_or_default();
@@ -583,6 +584,9 @@ impl Ctx<'_> {
                 self.warn(format!("layer \"{name}\": type data in another byte order or with unsafe type geometry; kept as pixels"));
                 LayerContent::Raster(self.record_surface(rec, &name))
             }
+        } else if pixel_source == Some(crate::scene3d_map::PixelSource::ThreeD) {
+            // A 3D layer: Photoshop's stored render is the picture, the scene block is kept verbatim.
+            LayerContent::Scene3d(photocraft_doc::Scene3dLayer { cache: self.record_surface(rec, &name), psd_raw: principal(b"PxSc") })
         } else if let Some(k) = smart_key {
             self.smart_content(rec, &name, k, &principal)
         } else if let Some((f, soft)) = soft_shape_fill(rec, vector_key.is_some(), fill_key) {
@@ -634,9 +638,12 @@ impl Ctx<'_> {
             let raw = rec.block(&k).map(|b| b.data.as_slice()).unwrap_or_default().into();
             LayerContent::Adjustment(photocraft_doc::Adjustment::Unsupported { psd_key: key, raw })
         } else {
+            if pixel_source == Some(crate::scene3d_map::PixelSource::Unreadable) {
+                self.warn(format!("layer \"{name}\": its 3D data could not be read; it opens as pixels and the data is kept as saved"));
+            }
             LayerContent::Raster(self.record_surface(rec, &name))
         };
-        let rendered = matches!(content, LayerContent::Shape(_) | LayerContent::Text(_) | LayerContent::Smart(_));
+        let rendered = matches!(content, LayerContent::Shape(_) | LayerContent::Text(_) | LayerContent::Smart(_) | LayerContent::Scene3d(_));
         let mut l = Layer::new(name, content);
         l.psd_blocks = blocks;
         l.fill_cache = fill_cache;
