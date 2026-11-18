@@ -28,7 +28,7 @@ fn bad(msg: impl Into<String>) -> EngineError {
 /// transform instead of pixels (type, shapes, smart objects). Only pixel layers move just the
 /// selected pixels.
 pub fn moves_whole(layer: &Layer) -> bool {
-    matches!(layer.content, LayerContent::Group(_) | LayerContent::Text(_) | LayerContent::Shape(_) | LayerContent::Smart(_))
+    matches!(layer.content, LayerContent::Group(_) | LayerContent::Text(_) | LayerContent::Shape(_) | LayerContent::Smart(_) | LayerContent::Scene3d(_))
 }
 
 /// Document-space bounds a transform of `layer` starts from (what Free Transform frames): the
@@ -540,6 +540,12 @@ fn apply_transform(
             if let Some(m) = &mut sm.filter_mask {
                 m.surface = warp_gray(&m.surface, h, interp)?;
             }
+        }
+        LayerContent::Scene3d(s3) => {
+            // The stored render is authoritative until a 3D re-render exists, so the transform
+            // moves its pixels (the layer stays a 3D layer and its mask follows).
+            let src = s3.cache.content_bounds();
+            s3.cache = warp_surface(&s3.cache, src, h, interp)?;
         }
         _ => {
             if let Some(surf) = l.surface_mut() {

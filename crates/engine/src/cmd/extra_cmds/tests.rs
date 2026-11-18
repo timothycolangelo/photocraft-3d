@@ -1349,6 +1349,21 @@ fn moving_a_3d_layer_never_panics() {
         }
         assert!(matches!(layer_of(&s, id.0).content, LayerContent::Scene3d(_)), "{cmd}");
     }
+    // Free Transform warps the stored render: two marked pixels swap places.
+    let mut s = session(8);
+    let id = make_3d(&mut s);
+    s.edit("mark", |doc, _| {
+        if let LayerContent::Scene3d(l) = &mut doc.layer_mut(id).unwrap().content {
+            l.cache.fill_rect(Rect::new(7, 5, 8, 6), &[1.0, 0.0, 0.0, 1.0]);
+        }
+        Ok(())
+    })
+    .unwrap();
+    s.execute("edit.transform.rotate180", json!({})).unwrap();
+    assert!(matches!(layer_of(&s, id.0).content, LayerContent::Scene3d(_)));
+    // 180 degrees about the content's centre: the blue pixel (5,5) and red pixel (7,5) swap.
+    assert_eq!(pixel(&s, 7, 5), BLUE.to_vec());
+    assert_eq!(pixel(&s, 5, 5), vec![1.0, 0.0, 0.0, 1.0]);
     let mut s = session(8);
     make_3d(&mut s);
     // The Move tool's command moves the stored render with the layer.
